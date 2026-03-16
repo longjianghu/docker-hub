@@ -14,7 +14,7 @@ RUN apk add --no-cache tzdata && \
 RUN mkdir -p /data && chown redis:redis /data
 
 # 复制配置 默认配置:https://raw.githubusercontent.com/redis/redis/7.2/redis.conf
-COPY --chown=redis:redis redis.conf /etc/redis.conf
+COPY --chown=redis:redis redis-cache.conf /etc/redis.conf
 
 # 切换到非 root 用户运行（安全）
 USER redis
