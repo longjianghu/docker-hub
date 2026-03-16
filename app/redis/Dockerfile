@@ -1,5 +1,4 @@
 FROM redis:7.2.13-alpine3.21
-
 LABEL maintainer="Longjianghu <215241062@qq.com>"
 
 # 更换阿里源
@@ -13,12 +12,15 @@ RUN apk add --no-cache tzdata && \
 # 确保数据目录权限（Redis 用户 uid=999）
 RUN mkdir -p /data && chown redis:redis /data
 
-# 复制配置 默认配置:https://raw.githubusercontent.com/redis/redis/7.2/redis.conf
+# 复制配置
 COPY --chown=redis:redis redis-cache.conf /etc/redis.conf
 
-# 切换到非 root 用户运行（安全）
-USER redis
+# 复制启动脚本
+COPY --chown=redis:redis docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+USER redis
 EXPOSE 6379
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["redis-server", "/etc/redis.conf"]
