@@ -18,11 +18,15 @@ docker build -t longjianghu/redis:7.2.13 ./app/redis/
 
 ## Nginx
 
-docker run --name nginx -p 80:80 -p 443:443 -v /data/var/www:/data/htdocs -v /data/var/etc/nginx/conf.d/:/etc/nginx/conf.d/ -v /data/var/etc/nginx/nginx.conf:/etc/nginx/nginx.conf -v /data/var/log/nginx/:/var/log/nginx/ -d longjianghu/nginx:1.29.6
+> nginx 配置生成网站：https://nginxconfig.io
+
+docker run --name nginx -p 80:80 -p 443:443 -v /data/var/www:/data/htdocs -v /data/var/etc/nginx/conf.d/:/etc/nginx/conf.d/ -v /data/var/etc/nginx/nginx.conf:/etc/nginx/nginx.conf -v /data/var/log/nginx/:/var/log/nginx/ --restart=unless-stopped -d longjianghu/nginx:1.29.6
+
+docker run --name nginx -p 80:80 -p 443:443 -v /data/var/www:/data/htdocs -v /data/var/etc/nginx/conf.d:/etc/nginx/conf.d  -v /data/nginx/ssl:/etc/nginx/ssl -v /data/var/log/nginx/:/var/log/nginx/ --restart=unless-stopped -d longjianghu/nginx:1.29.6
 
 ## MySQL
 
-docker run --name mysql -p 3306:3306 -v /data/var/etc/mysql:/etc/mysql/conf.d -v /data/var/lib/mysql:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 -d longjianghu/mysql:8.4.8
+docker run --name mysql -p 3306:3306 -v /data/var/etc/mysql:/etc/mysql/conf.d -v /data/var/lib/mysql:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 --restart=unless-stopped -d longjianghu/mysql:8.4.8
 
 ## Redis
 
@@ -30,12 +34,12 @@ docker run --name mysql -p 3306:3306 -v /data/var/etc/mysql:/etc/mysql/conf.d -v
 
 > 扶久化不丢失数据
 
-docker run --name redis -p 6379:6379 -v /data/var/etc/redis/redis-db.conf:/etc/redis.conf -v /data/var/lib/redis:/data -d longjianghu/redis:7.2.13
+docker run --name redis -p 6379:6379 -v /data/var/etc/redis/redis-db.conf:/etc/redis.conf -v /data/var/lib/redis:/data --restart=unless-stopped -d longjianghu/redis:7.2.13
 
 > 日常开发缓存场景(默认)
 
-docker run --name redis -p 6379:6379 -v /data/var/etc/redis/redis-cache.conf:/etc/redis.conf -v /data/var/lib/redis:/data -d longjianghu/redis:7.2.13
+docker run --name redis -p 6379:6379 -v /data/var/etc/redis/redis-cache.conf:/etc/redis.conf -v /data/var/lib/redis:/data --restart=unless-stopped -d longjianghu/redis:7.2.13
 
 ## PHPMyadmin
 
-docker run --name phpmyadmin -p 8000:80 -e PMA_HOST=172.17.0.1 -d phpmyadmin/phpmyadmin
+docker run --name phpmyadmin -p 8000:80 -e PMA_HOST=172.17.0.1 --restart=unless-stopped -d phpmyadmin/phpmyadmin
