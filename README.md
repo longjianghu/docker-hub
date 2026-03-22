@@ -81,7 +81,7 @@ docker build -t longjianghu/spring:21-fonts ./app/spring/21-fonts
 FROM longjianghu/spring:21
 
 LABEL org.opencontainers.image.authors="longjianghu <215241062@qq.com>" \
-      org.opencontainers.image.description="Gateway service"
+      org.opencontainers.image.description="service name"
 
 ARG PROFILES=dev
 ENV PROFILES=${PROFILES}
