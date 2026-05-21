@@ -1,3 +1,9 @@
+# ==============================================================================
+# 静态站点示例
+# 适用于：Vue / React 单页应用
+# 使用方法：复制为 example.com.conf，替换 server_name 和证书路径
+# ==============================================================================
+
 server {
     listen 80;
     listen [::]:80;
@@ -13,6 +19,9 @@ server {
     root /var/www/html;
     index index.html;
 
+    # --------------------------------------------------------------------------
+    # SSL
+    # --------------------------------------------------------------------------
     ssl_certificate /etc/nginx/ssl/example.com.pem;
     ssl_certificate_key /etc/nginx/ssl/example.com.key;
 
@@ -24,38 +33,40 @@ server {
     ssl_session_timeout 1d;
     ssl_session_tickets off;
 
+    # --------------------------------------------------------------------------
+    # 安全 Header
+    # --------------------------------------------------------------------------
     add_header Strict-Transport-Security "max-age=31536000" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
-    access_log /var/log/nginx/example.com.access.log combined buffer=32k flush=5s;
+    # --------------------------------------------------------------------------
+    # 日志
+    # --------------------------------------------------------------------------
+    access_log /var/log/nginx/example.com.access.log main buffer=32k flush=5s;
     error_log /var/log/nginx/example.com.error.log warn;
 
-    gzip on;
-    gzip_comp_level 5;
-    gzip_min_length 256;
-    gzip_vary on;
-    gzip_proxied any;
-
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss image/svg+xml;
-
-    location = /index.html {
-        expires -1;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    # --------------------------------------------------------------------------
+    # 单页应用：所有路由回退 index.html
+    # --------------------------------------------------------------------------
+    location / {
+        try_files $uri $uri/ /index.html;
     }
 
+    # --------------------------------------------------------------------------
+    # 静态资源缓存（带哈希的资源长期缓存）
+    # --------------------------------------------------------------------------
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|woff|woff2|svg|webp|avif)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
         access_log off;
     }
 
+    # --------------------------------------------------------------------------
+    # 禁止访问隐藏文件
+    # --------------------------------------------------------------------------
     location ~ /\.(?!well-known).* {
         deny all;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
     }
 }
