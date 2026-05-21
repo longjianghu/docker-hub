@@ -21,7 +21,6 @@ error()   { echo "${RED}[ERROR]${NC} $1"; exit 1; }
 if ! command -v acme.sh > /dev/null 2>&1 && [ ! -f "$HOME/.acme.sh/acme.sh" ]; then
     warn "未检测到 acme.sh，正在安装..."
     curl https://get.acme.sh | sh
-    . "$HOME/.bashrc" 2>/dev/null || . "$HOME/.profile" 2>/dev/null || true
     success "acme.sh 安装完成，cron 自动续期已启用"
 else
     success "acme.sh 已安装"
@@ -33,6 +32,25 @@ ACME="$HOME/.acme.sh/acme.sh"
 success "已切换到 Let's Encrypt"
 
 # ─────────────────────────────────────────
+#  输入辅助函数
+# ─────────────────────────────────────────
+trim() { echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
+
+validate_domain() {
+    case "$1" in
+        ""|*[!a-zA-Z0-9._-]*|[!a-zA-Z0-9]*|*.*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+validate_container_name() {
+    case "$1" in
+        ""|*[!a-zA-Z0-9._-]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# ─────────────────────────────────────────
 #  配置 DNSPod API 环境变量
 # ─────────────────────────────────────────
 echo ""
@@ -40,16 +58,18 @@ info "是否配置 DNSPod API 环境变量？（acme.sh 会自动保存，续期
 printf "请选择 [y/N]: "
 read SETUP_ENV
 
-if [ "$SETUP_ENV" = "y" ] || [ "$SETUP_ENV" = "Y" ]; then
+if [ "$(trim "$SETUP_ENV")" = "y" ] || [ "$(trim "$SETUP_ENV")" = "Y" ]; then
     printf "请输入 DP_Id: "
     read DP_Id
     printf "请输入 DP_Key: "
     read DP_Key
 
-    if [ -z "$DP_Id" ] || [ -z "$DP_Key" ]; then
+    if [ -z "$(trim "$DP_Id")" ] || [ -z "$(trim "$DP_Key")" ]; then
         error "DP_Id 和 DP_Key 不能为空"
     fi
 
+    DP_Id="$(trim "$DP_Id")"
+    DP_Key="$(trim "$DP_Key")"
     export DP_Id
     export DP_Key
     success "环境变量已设置（本次会话生效，acme.sh 申请后会持久化到 account.conf）"
@@ -64,8 +84,8 @@ echo ""
 info "请输入证书存放根目录（默认: /data/nginx/ssl）："
 printf "> "
 read SSL_DIR
-SSL_DIR="${SSL_DIR:-/data/nginx/ssl}"
-mkdir -p "$SSL_DIR"
+SSL_DIR="$(trim "${SSL_DIR:-/data/nginx/ssl}")"
+mkdir -p "$SSL_DIR" || error "无法创建证书目录: $SSL_DIR"
 success "证书目录: $SSL_DIR"
 
 # ─────────────────────────────────────────
@@ -76,40 +96,78 @@ info "开始配置证书，每次输入一个主域名（证书名），可附�
 info "输入空行结束"
 
 CERT_COUNT=0
+FAIL_COUNT=0
 
 while true; do
     echo ""
     printf "主域名（留空结束）: "
     read MAIN_DOMAIN
+    MAIN_DOMAIN="$(trim "$MAIN_DOMAIN")"
 
     [ -z "$MAIN_DOMAIN" ] && break
+
+    if ! validate_domain "$MAIN_DOMAIN"; then
+        warn "域名格式无效: $MAIN_DOMAIN，跳过"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        continue
+    fi
+
+    # 检查证书是否已存在
+    if [ -f "$SSL_DIR/${MAIN_DOMAIN}.pem" ] || [ -f "$SSL_DIR/${MAIN_DOMAIN}.key" ]; then
+        warn "检测到域名 $MAIN_DOMAIN 已有证书文件"
+        printf "是否覆盖？[y/N]: "
+        read OVERWRITE
+        if [ "$(trim "$OVERWRITE")" != "y" ] && [ "$(trim "$OVERWRITE")" != "Y" ]; then
+            info "跳过 $MAIN_DOMAIN"
+            continue
+        fi
+    fi
 
     # 收集附加域名
     DOMAIN_ARGS="-d $MAIN_DOMAIN"
     while true; do
         printf "附加域名（留空跳过）: "
         read EXTRA_DOMAIN
+        EXTRA_DOMAIN="$(trim "$EXTRA_DOMAIN")"
         [ -z "$EXTRA_DOMAIN" ] && break
+        if ! validate_domain "$EXTRA_DOMAIN"; then
+            warn "域名格式无效: $EXTRA_DOMAIN，跳过"
+            continue
+        fi
         DOMAIN_ARGS="$DOMAIN_ARGS -d $EXTRA_DOMAIN"
     done
 
     # Docker 容器名（用于 reload）
     printf "Nginx 容器名（默认: nginx）: "
     read NGINX_CONTAINER
-    NGINX_CONTAINER="${NGINX_CONTAINER:-nginx}"
+    NGINX_CONTAINER="$(trim "${NGINX_CONTAINER:-nginx}")"
+
+    if ! validate_container_name "$NGINX_CONTAINER"; then
+        warn "容器名格式无效: $NGINX_CONTAINER，跳过"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        continue
+    fi
 
     # 证书路径
     CERT_KEY="$SSL_DIR/${MAIN_DOMAIN}.key"
     CERT_PEM="$SSL_DIR/${MAIN_DOMAIN}.pem"
 
     info "正在申请证书: $DOMAIN_ARGS"
-    "$ACME" --issue --dns dns_dp $DOMAIN_ARGS
+    if ! "$ACME" --issue --dns dns_dp $DOMAIN_ARGS; then
+        warn "证书申请失败: $MAIN_DOMAIN，跳过"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        continue
+    fi
 
     info "正在安装证书..."
-    "$ACME" --install-cert -d "$MAIN_DOMAIN" \
+    if ! "$ACME" --install-cert -d "$MAIN_DOMAIN" \
         --key-file       "$CERT_KEY" \
         --fullchain-file "$CERT_PEM" \
-        --reloadcmd      "docker exec $NGINX_CONTAINER nginx -s reload"
+        --reloadcmd      "docker exec $NGINX_CONTAINER nginx -s reload"; then
+        warn "证书安装失败: $MAIN_DOMAIN"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        continue
+    fi
 
     CERT_COUNT=$((CERT_COUNT + 1))
 
@@ -123,15 +181,22 @@ done
 #  汇总输出
 # ─────────────────────────────────────────
 echo ""
-if [ "$CERT_COUNT" -eq 0 ]; then
+if [ "$CERT_COUNT" -eq 0 ] && [ "$FAIL_COUNT" -eq 0 ]; then
     warn "未申请任何证书"
+elif [ "$CERT_COUNT" -eq 0 ]; then
+    error "所有证书申请均失败（共 $FAIL_COUNT 个）"
 else
-    success "共申请 $CERT_COUNT 张证书，存放于: $SSL_DIR"
+    success "成功申请 $CERT_COUNT 张证书，存放于: $SSL_DIR"
+    if [ "$FAIL_COUNT" -gt 0 ]; then
+        warn "有 $FAIL_COUNT 个域名申请失败"
+    fi
     echo ""
     info "证书列表："
-    ls -1 "$SSL_DIR"/*.pem 2>/dev/null | while read f; do
-        echo "  $f"
+    found=0
+    for f in "$SSL_DIR"/*.pem; do
+        [ -f "$f" ] && echo "  $f" && found=1
     done
+    [ "$found" -eq 0 ] && warn "未找到 .pem 文件"
 fi
 
 echo ""
