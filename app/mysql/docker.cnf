@@ -23,7 +23,7 @@ socket  = /var/run/mysqld/mysqld.sock
 
 # 字符集（全部统一 utf8mb4，避免乱码）
 character_set_server   = utf8mb4
-collation_server       = utf8mb4_unicode_ci
+collation_server       = utf8mb4_0900_ai_ci
 init_connect           = 'SET NAMES utf8mb4'
 
 # 时区（按实际情况修改）
