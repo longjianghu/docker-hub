@@ -44,11 +44,11 @@ docker run --name mysql -p 3306:3306 -v /data/var/etc/mysql:/etc/mysql/conf.d -v
 
 > 自定义Redis密码 -e REDIS_PASSWORD=xxx -e REDIS_BIND=0.0.0.0
 
-> 扶久化不丢失数据
+> 扶久化不丢失数据(默认)
 
 docker run --name redis -p 6379:6379 -v /data/var/etc/redis/redis-db.conf:/etc/redis.conf -v /data/var/lib/redis:/data --restart=unless-stopped -d longjianghu/redis:7.2.13
 
-> 日常开发缓存场景(默认)
+> 日常开发缓存场景
 
 docker run --name redis -p 6379:6379 -v /data/var/etc/redis/redis-cache.conf:/etc/redis.conf -v /data/var/lib/redis:/data --restart=unless-stopped -d longjianghu/redis:7.2.13
 

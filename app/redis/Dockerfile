@@ -13,7 +13,7 @@ RUN apk add --no-cache tzdata su-exec && \
 RUN mkdir -p /data
 
 # 复制配置
-COPY --chown=redis:redis redis-cache.conf /etc/redis.conf
+COPY --chown=redis:redis redis-db.conf /etc/redis.conf
 
 # 复制启动脚本（root owned，chmod 赋予执行权限）
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
