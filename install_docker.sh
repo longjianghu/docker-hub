@@ -22,8 +22,9 @@ fi
 
 echo "=== 使用腾讯云镜像源安装 Docker ==="
 
-# 安装 Docker（腾讯云源）
-curl -fsSL https://get.docker.com | bash -s docker --mirror Tencent
+# 通过设置环境变量指定腾讯云镜像源安装 Docker
+DOCKERIRROR="https://mirrors.cloud.tencent.com/docker-ce" \
+curl -fsSL https://get.docker.com | bash -s docker
 
 # 添加当前用户到 docker 组
 sudo usermod -aG docker "$USER" 2>/dev/null || true
