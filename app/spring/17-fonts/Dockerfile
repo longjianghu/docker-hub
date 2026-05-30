@@ -11,7 +11,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -Djava.security.egd=file:/dev/./urandom \
     -Xlog:gc*:file=/app/logs/gc.log:time,level,tags:filesize=50M,filecount=5"
 
-
+USER root
 RUN cat > /app/entrypoint.sh <<'EOF'
 #!/bin/sh
 set -e
@@ -20,5 +20,4 @@ exec java ${JAVA_OPTS} \
     --spring.profiles.active=${PROFILES} \
     "$@"
 EOF
-
 RUN chmod +x /app/entrypoint.sh
