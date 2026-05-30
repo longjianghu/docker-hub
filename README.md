@@ -4,7 +4,7 @@
 
 # 安装 Docker
 
-执行install_docker.sh
+curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
 
 # 构建容器
 
@@ -34,7 +34,7 @@ docker buildx build --builder mybuilder --platform linux/amd64,linux/arm64/v8 -t
 
 docker run --name nginx -p 80:80 -p 443:443 -v /data/var/www:/data/htdocs -v /data/var/etc/nginx/conf.d/:/etc/nginx/conf.d/ -v /data/var/etc/nginx/nginx.conf:/etc/nginx/nginx.conf -v /data/var/log/nginx/:/var/log/nginx/ --restart=unless-stopped -d longjianghu/nginx:1.29.6
 
-docker run --name nginx -p 80:80 -p 443:443 -v /data/var/www:/data/htdocs -v /data/var/etc/nginx/conf.d:/etc/nginx/conf.d  -v /data/nginx/ssl:/etc/nginx/ssl -v /data/var/log/nginx/:/var/log/nginx/ --restart=unless-stopped -d longjianghu/nginx:1.29.6
+docker run --name nginx -p 80:80 -p 443:443 -v /data/var/www:/data/htdocs -v /data/var/etc/nginx/ssl:/etc/nginx/ssl -v /data/var/etc/nginx/conf.d/:/etc/nginx/conf.d/ -v /data/var/etc/nginx/nginx.conf:/etc/nginx/nginx.conf -v /data/var/log/nginx/:/var/log/nginx/ --restart=unless-stopped -d longjianghu/nginx:1.29.6
 
 ## MySQL
 

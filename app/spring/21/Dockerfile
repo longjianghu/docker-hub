@@ -11,10 +11,8 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -Djava.security.egd=file:/dev/./urandom \
     -Xlog:gc*:file=/app/logs/gc.log:time,level,tags:filesize=50M,filecount=5"
 
-USER root
 
-RUN mkdir -p /app/logs \
- && cat > /app/entrypoint.sh <<'EOF'
+RUN cat > /app/entrypoint.sh <<'EOF'
 #!/bin/sh
 set -e
 exec java ${JAVA_OPTS} \
@@ -23,7 +21,4 @@ exec java ${JAVA_OPTS} \
     "$@"
 EOF
 
-RUN chmod +x /app/entrypoint.sh \
- && chown appuser:appgroup /app/entrypoint.sh /app/logs
-
-USER appuser
+RUN chmod +x /app/entrypoint.sh

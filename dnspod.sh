@@ -28,7 +28,7 @@ fi
 
 ACME="$HOME/.acme.sh/acme.sh"
 
-"$ACME" --set-default-ca --server letsencrypt
+"$ACME" --set-default-ca --server letsencrypt || error "切换 Let's Encrypt 失败，请检查网络"
 success "已切换到 Let's Encrypt"
 
 # ─────────────────────────────────────────
@@ -38,7 +38,7 @@ trim() { echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
 
 validate_domain() {
     case "$1" in
-        ""|*[!a-zA-Z0-9._-]*|[!a-zA-Z0-9]*|*.*) return 1 ;;
+        ""|*[!a-zA-Z0-9._-]*) return 1 ;;
         *) return 0 ;;
     esac
 }
@@ -62,7 +62,8 @@ if [ "$(trim "$SETUP_ENV")" = "y" ] || [ "$(trim "$SETUP_ENV")" = "Y" ]; then
     printf "请输入 DP_Id: "
     read DP_Id
     printf "请输入 DP_Key: "
-    read DP_Key
+    read -rs DP_Key
+    echo ""
 
     if [ -z "$(trim "$DP_Id")" ] || [ -z "$(trim "$DP_Key")" ]; then
         error "DP_Id 和 DP_Key 不能为空"
@@ -72,7 +73,8 @@ if [ "$(trim "$SETUP_ENV")" = "y" ] || [ "$(trim "$SETUP_ENV")" = "Y" ]; then
     DP_Key="$(trim "$DP_Key")"
     export DP_Id
     export DP_Key
-    success "环境变量已设置（本次会话生效，acme.sh 申请后会持久化到 account.conf）"
+    # acme.sh 首次 --issue 时会自动将 DP_Id/DP_Key 持久化到 ~/.acme.sh/account.conf
+    success "环境变量已设置"
 else
     info "跳过环境变量配置，将使用已保存的凭据"
 fi
@@ -81,10 +83,10 @@ fi
 #  SSL 证书存放目录
 # ─────────────────────────────────────────
 echo ""
-info "请输入证书存放根目录（默认: /data/nginx/ssl）："
+info "请输入证书存放根目录（默认: /data/var/etc/nginx/ssl）："
 printf "> "
 read SSL_DIR
-SSL_DIR="$(trim "${SSL_DIR:-/data/nginx/ssl}")"
+SSL_DIR="$(trim "${SSL_DIR:-/data/var/etc/nginx/ssl}")"
 mkdir -p "$SSL_DIR" || error "无法创建证书目录: $SSL_DIR"
 success "证书目录: $SSL_DIR"
 
@@ -165,6 +167,8 @@ while true; do
         --fullchain-file "$CERT_PEM" \
         --reloadcmd      "docker exec $NGINX_CONTAINER nginx -s reload"; then
         warn "证书安装失败: $MAIN_DOMAIN"
+        warn "证书已签发但未安装，可手动执行:"
+        warn "  $ACME --install-cert -d $MAIN_DOMAIN --key-file $CERT_KEY --fullchain-file $CERT_PEM --reloadcmd 'docker exec $NGINX_CONTAINER nginx -s reload'"
         FAIL_COUNT=$((FAIL_COUNT + 1))
         continue
     fi
