@@ -1,5 +1,5 @@
-#!/bin/sh
-set -e
+#!/bin/bash
+set -euo pipefail
 
 # ─────────────────────────────────────────
 #  颜色
@@ -15,12 +15,26 @@ success() { echo "${GREEN}[OK]${NC}    $1"; }
 warn()    { echo "${YELLOW}[WARN]${NC}  $1"; }
 error()   { echo "${RED}[ERROR]${NC} $1"; exit 1; }
 
+trap 'stty echo 2>/dev/null' EXIT
+
+usage() {
+    echo "用法: $0 [--help]"
+    echo "交互式申请 Let's Encrypt SSL 证书（DNSPod DNS 验证）"
+    echo ""
+    echo "功能："
+    echo "  - 自动安装 acme.sh（如未安装）"
+    echo "  - 使用 DNSPod DNS 验证申请 Let's Encrypt 证书"
+    echo "  - 支持多域名 SAN 证书"
+    echo "  - 申请后自动 reload Nginx 容器"
+}
+[ "${1:-}" = "--help" ] && usage && exit 0
+
 # ─────────────────────────────────────────
 #  检查 acme.sh
 # ─────────────────────────────────────────
 if ! command -v acme.sh > /dev/null 2>&1 && [ ! -f "$HOME/.acme.sh/acme.sh" ]; then
     warn "未检测到 acme.sh，正在安装..."
-    curl https://get.acme.sh | sh
+    curl -f https://get.acme.sh | sh || error "acme.sh 安装失败，请检查网络"
     success "acme.sh 安装完成，cron 自动续期已启用"
 else
     success "acme.sh 已安装"
@@ -39,8 +53,11 @@ trim() { echo "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
 validate_domain() {
     case "$1" in
         ""|*[!a-zA-Z0-9._-]*) return 1 ;;
-        *) return 0 ;;
+        *..*) return 1 ;;
+        .*) return 1 ;;
+        *.*) ;; *) return 1 ;;
     esac
+    return 0
 }
 
 validate_container_name() {
@@ -59,12 +76,14 @@ printf "请选择 [y/N]: "
 read SETUP_ENV
 
 if [ "$(trim "$SETUP_ENV")" = "y" ] || [ "$(trim "$SETUP_ENV")" = "Y" ]; then
-    printf "请输入 DP_Id: "
+    info "请前往 https://console.dnspod.cn/account/token/token 生成 DNSPod 密钥"
+    printf "请输入 DP_Id (SecretId): "
     read DP_Id
-    printf "请输入 DP_Key: "
-    read -rs DP_Key
+    printf "请输入 DP_Key (SecretKey): "
+    stty -echo
+    read DP_Key
+    stty echo
     echo ""
-
     if [ -z "$(trim "$DP_Id")" ] || [ -z "$(trim "$DP_Key")" ]; then
         error "DP_Id 和 DP_Key 不能为空"
     fi
@@ -91,6 +110,11 @@ mkdir -p "$SSL_DIR" || error "无法创建证书目录: $SSL_DIR"
 success "证书目录: $SSL_DIR"
 
 # ─────────────────────────────────────────
+#  已处理域名记录（去重）
+# ─────────────────────────────────────────
+PROCESSED_DOMAINS=""
+
+# ─────────────────────────────────────────
 #  循环申请证书
 # ─────────────────────────────────────────
 echo ""
@@ -111,6 +135,12 @@ while true; do
     if ! validate_domain "$MAIN_DOMAIN"; then
         warn "域名格式无效: $MAIN_DOMAIN，跳过"
         FAIL_COUNT=$((FAIL_COUNT + 1))
+        continue
+    fi
+
+    # 检查本次会话中是否重复输入
+    if echo "$PROCESSED_DOMAINS" | grep -qx "$MAIN_DOMAIN"; then
+        warn "域名 $MAIN_DOMAIN 本次会话已申请过，跳过"
         continue
     fi
 
@@ -150,6 +180,13 @@ while true; do
         continue
     fi
 
+    # 检查容器是否存在
+    if ! docker inspect "$NGINX_CONTAINER" > /dev/null 2>&1; then
+        warn "容器 $NGINX_CONTAINER 不存在，跳过"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        continue
+    fi
+
     # 证书路径
     CERT_KEY="$SSL_DIR/${MAIN_DOMAIN}.key"
     CERT_PEM="$SSL_DIR/${MAIN_DOMAIN}.pem"
@@ -165,7 +202,7 @@ while true; do
     if ! "$ACME" --install-cert -d "$MAIN_DOMAIN" \
         --key-file       "$CERT_KEY" \
         --fullchain-file "$CERT_PEM" \
-        --reloadcmd      "docker exec $NGINX_CONTAINER nginx -s reload"; then
+        --reloadcmd      "docker exec '$NGINX_CONTAINER' nginx -s reload"; then
         warn "证书安装失败: $MAIN_DOMAIN"
         warn "证书已签发但未安装，可手动执行:"
         warn "  $ACME --install-cert -d $MAIN_DOMAIN --key-file $CERT_KEY --fullchain-file $CERT_PEM --reloadcmd 'docker exec $NGINX_CONTAINER nginx -s reload'"
@@ -173,6 +210,9 @@ while true; do
         continue
     fi
 
+    # 记录已处理的域名
+    PROCESSED_DOMAINS="$PROCESSED_DOMAINS
+$MAIN_DOMAIN"
     CERT_COUNT=$((CERT_COUNT + 1))
 
     echo ""
@@ -189,7 +229,9 @@ if [ "$CERT_COUNT" -eq 0 ] && [ "$FAIL_COUNT" -eq 0 ]; then
     warn "未申请任何证书"
 elif [ "$CERT_COUNT" -eq 0 ]; then
     error "所有证书申请均失败（共 $FAIL_COUNT 个）"
-else
+fi
+
+if [ "$CERT_COUNT" -gt 0 ]; then
     success "成功申请 $CERT_COUNT 张证书，存放于: $SSL_DIR"
     if [ "$FAIL_COUNT" -gt 0 ]; then
         warn "有 $FAIL_COUNT 个域名申请失败"
