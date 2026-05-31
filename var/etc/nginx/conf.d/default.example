@@ -34,12 +34,9 @@ server {
     ssl_session_tickets off;
 
     # --------------------------------------------------------------------------
-    # 安全 Header
+    # 安全 Header（HSTS 仅 HTTPS 站点启用，其余已在 nginx.conf 全局配置）
     # --------------------------------------------------------------------------
     add_header Strict-Transport-Security "max-age=31536000" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
 
     # --------------------------------------------------------------------------
     # 日志
